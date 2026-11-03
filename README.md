@@ -2,94 +2,190 @@
 
 ## Descripción del proyecto
 
-Este proyecto permite gestionar el envío de recordatorios de citas médicas mediante diferentes canales de notificación. Para esta primera parte se implementaron estrategias de envío por correo electrónico y SMS, junto con pruebas unitarias utilizando JUnit 5 y Mockito.
+Este proyecto permite gestionar el envío automático de recordatorios de citas médicas mediante diferentes canales de notificación. Se implementaron estrategias de envío por correo electrónico y SMS, pruebas unitarias con JUnit 5 y Mockito, pruebas de integración con Spring Boot y un proceso de integración continua mediante GitHub Actions.
+
+El desarrollo se divide en dos partes: la implementación inicial con Test Doubles y el refactor de la arquitectura aplicando el principio de Inversión de Dependencias (DIP).
 
 ## Tecnologías utilizadas
 
 - Java 21
-- Spring Boot
+- Spring Boot 4.0.9
 - Spring Data JPA
 - H2 Database
 - JUnit 5
-- Mockitor
+- Mockito
 - Maven
+- Git y GitHub
+- GitHub Actions
 
 ## Funcionalidades implementadas
 
 - Consulta de citas pendientes de recordatorio.
-- Búsqueda de citas dentro de las próximas 24 horas.
+- Búsqueda de citas programadas dentro de las próximas 24 horas.
 - Selección del canal de notificación según la preferencia de cada cita.
 - Envío simulado de recordatorios por correo electrónico o SMS.
-- Actualización de la cita después del envío.
-- Pruebas unitarias del servicio de recordatorios.
+- Actualización del estado de la cita después del envío.
+- Envío de recordatorios urgentes mediante un canal independiente.
+- Validación de citas para evitar notificaciones duplicadas o fuera del intervalo permitido.
+- Pruebas unitarias y pruebas de integración.
+
+---
+
+# Parte 1: Mockito y elección justificada de Test Doubles
 
 ## Decisiones de diseño
 
 ### Patrón Strategy
 
-Se creó la interfaz `ReminderChannel` para definir una operación común de envío de recordatorios. Las clases `EmailReminderChannel` y `SmsReminderChannel` implementan esta interfaz, permitiendo utilizar diferentes canales sin cambiar la lógica principal del servicio.
+Se creó la interfaz `ReminderChannel` para definir una operación común de envío de recordatorios. Las clases `EmailReminderChannel` y `SmsReminderChannel` implementan esta interfaz, permitiendo utilizar diferentes canales sin modificar la lógica principal del servicio.
 
-Esta separación también facilita las pruebas, porque se puede simular un canal de notificación con Mockito y verificar que se invoque correctamente.
+Esta separación facilita las pruebas, ya que es posible simular los canales de notificación con Mockito y verificar su comportamiento sin realizar envíos reales.
 
 ### Patrón Factory
 
-Se implementó `ReminderChannelFactory` para seleccionar el canal correspondiente según el valor de `CanalNotificacion`. De esta forma, `CitaReminderServiceImpl` delega la selección del canal en lugar de encargarse directamente de crear las estrategias.
+Se implementó `ReminderChannelFactory` para seleccionar el canal correspondiente según el valor de `CanalNotificacion`.
 
-En las pruebas se puede verificar la selección del canal mediante `verify(reminderChannelFactory).obtenerCanal(...)`.
+De esta forma, `CitaReminderServiceImpl` delega la selección del canal en lugar de encargarse directamente de crear las estrategias. Esto reduce el acoplamiento y facilita la incorporación de nuevos canales de notificación.
 
 ### Uso de Test Doubles
 
-Se utilizan objetos simulados con Mockito para aislar el servicio de sus dependencias durante las pruebas:
+Se utilizaron objetos de prueba para aislar el servicio de sus dependencias y controlar su comportamiento durante las pruebas unitarias.
 
-- `CitaRepository`: permite controlar las citas que devuelve la consulta y verificar si se guardan cambios.
-- `ReminderChannelFactory`: permite controlar el canal que se obtiene.
-- `ReminderChannel`: permite verificar que se envíe el recordatorio sin realizar una notificación real.
+Las principales decisiones fueron:
 
-También se utiliza `Clock.fixed(...)` para controlar la fecha y hora de las pruebas. En lugar de simular el reloj, se emplea un reloj real con una hora fija, lo que hace que los resultados sean predecibles y repetibles.
+- **Mock:** se utilizó Mockito para simular `CitaRepository`, `ReminderChannelFactory` y `ReminderChannel`. Esto permite controlar las respuestas de las dependencias y verificar interacciones como las consultas, los envíos y el guardado de las citas.
+- **Stub:** se proporcionan respuestas controladas a las dependencias para probar diferentes escenarios, como la existencia o ausencia de citas pendientes.
+- **Fake:** no se implementó una clase Fake personalizada para las pruebas unitarias. Para las pruebas de persistencia se utiliza H2 como base de datos en memoria, proporcionando un entorno de almacenamiento de prueba.
+
+También se utiliza `Clock.fixed(...)` para controlar la fecha y hora de las pruebas. Es un reloj real configurado con una hora fija, no un Mock ni un Stub. Esto permite obtener resultados predecibles y repetibles sin depender de la hora del sistema.
 
 ### Separación de responsabilidades
 
-El servicio coordina el proceso de envío, el repositorio administra el acceso a las citas y los canales se encargan de enviar las notificaciones. Esta separación facilita el mantenimiento y las pruebas del código.
+El servicio coordina el proceso de envío, el repositorio administra el acceso a las citas y los canales se encargan de enviar las notificaciones.
+
+Esta separación facilita el mantenimiento, las pruebas y la evolución del sistema.
 
 ## Ejecución de las pruebas
 
 Desde la terminal, ubicada en la carpeta raíz del proyecto, ejecutar:
 
 ```powershell
-.\mvnw.cmd test
+mvn test
 ```
 
 La ejecución se considera correcta cuando Maven finaliza con `BUILD SUCCESS` y las pruebas terminan sin errores.
 
-## Alcance de esta entrega
+---
 
-Esta entrega corresponde a la primera parte de la actividad. Las notificaciones se simulan y no se realizan envíos reales mediante servicios externos.
-# Parte 2: Refactor por Inversión de Dependencias (DIP), Compatibilidad con Spring Boot 3.4+, Pruebas de Integración y CI
+# Parte 2: Inversión de Dependencias (DIP), pruebas de integración y CI
 
-## 🛠️ Decisiones de Diseño y Arquitectura (Parte 2)
+## Decisiones de diseño y arquitectura
 
-### 1. Aplicación del Principio de Inversión de Dependencias (DIP)
-* **Desacoplamiento de Canales Urgentes:** Se refactorizó la lógica de negocio para que el servicio principal no dependa de implementaciones concretas. Mediante la clase de configuración `CanalUrgenteConfig`, se define un punto de composición (*composition root*) que abstrae y gestiona la inyección de la estrategia para recordatorios de alta prioridad a través del constructor, cumpliendo estrictamente con el DIP.
+### 1. Aplicación del principio de Inversión de Dependencias (DIP)
 
-### 2. Estrategia de Pruebas Robustas y *Test Doubles*
-* **Reloj Determinista (`Clock.fixed`):** Para evitar la dependencia del tiempo del sistema y hacer que las pruebas de la ventana de 24 horas sean totalmente predecibles y repetibles, se configuró un `Clock` estático utilizando `Clock.fixed(Instant.parse("2026-08-10T09:00:00Z"), ZoneId.of("UTC"))`.
-* **Aislamiento con `@MockitoBean`:** Se adoptó la nueva API de Spring Boot 3.4+ reemplazando el antiguo `@MockBean` por `@MockitoBean` (`org.springframework.test.context.bean.override.mockito.MockitoBean`) para aislar los gateways externos de mensajería (como `NotificadorSmsGateway`) en el contexto completo de Spring.
-* **Gestión de Sobrescritura de Beans:** Se solventaron los conflictos de beans duplicados entre el entorno de producción y el de pruebas (específicamente con el bean `clock`) incorporando `@Primary` en las configuraciones de test y habilitando explícitamente la propiedad `spring.main.allow-bean-definition-overriding=true` a nivel de anotación en las pruebas de integración.
+Se refactorizó la lógica de negocio para evitar que el servicio principal dependa directamente de implementaciones concretas de los canales de notificación.
+
+Mediante la clase `CanalUrgenteConfig` se define la configuración del canal de notificación urgente, que se inyecta en `CitaReminderServiceImpl` mediante el constructor utilizando la interfaz `ReminderChannel`.
+
+Esta implementación permite que el servicio dependa de una abstracción y no de una clase concreta, facilitando el mantenimiento, las pruebas y la sustitución de implementaciones.
+
+### 2. Inyección de dependencias
+
+Se utiliza la inyección de dependencias por constructor para proporcionar al servicio sus colaboradores principales:
+
+- `C# Recordatorios de Citas - Unidad 9
+
+## Descripción del proyecto
+
+Este proyecto permite gestionar el envío automático de recordatorios de citas médicas mediante diferentes canales de notificación. Se implementaron estrategias de envío por correo electrónico y SMS, pruebas unitarias con JUnit 5 y Mockito, pruebas de integración con Spring Boot y un proceso de integración continua mediante GitHub Actions.
+
+El desarrollo se divide en dos partes: la implementación inicial con Test Doubles y el refactor de la arquitectura aplicando el principio de Inversión de Dependencias (DIP).
+
+## Tecnologías utilizadas
+
+- Java 21
+- Spring Boot 4.0.9
+- Spring Data JPA
+- H2 Database
+- JUnit 5
+- Mockito
+- Maven
+- Git y GitHub
+- GitHub Actions
+
+## Funcionalidades implementadas
+
+- Consulta de citas pendientes de recordatorio.
+- Búsqueda de citas programadas dentro de las próximas 24 horas.
+- Selección del canal de notificación según la preferencia de cada cita.
+- Envío simulado de recordatorios por correo electrónico o SMS.
+- Actualización del estado de la cita después del envío.
+- Envío de recordatorios urgentes mediante un canal independiente.
+- Validación de citas para evitar notificaciones duplicadas o fuera del intervalo permitido.
+- Pruebas unitarias y pruebas de integración.
 
 ---
 
-## 🔄 Integración Continua (CI) y Automatización
+# Parte 1: Mockito y elección justificada de Test Doubles
 
-* **Pipeline en GitHub Actions:** Se configuró un flujo de trabajo automatizado que se ejecuta en cada `push` o `pull request` hacia la rama principal. Este entorno limpia, compila y ejecuta todas las fases del ciclo de vida de Maven de forma aislada.
-* **Badge de Estado:** El repositorio incluye el indicador visual que certifica el correcto funcionamiento del pipeline en entornos Linux limpios:
-  
-  [![CI Status](https://github.com/Eileenbalaguera22/balaguera-post1-u9/actions/workflows/ci.yml/badge.svg)](https://github.com/Eileenbalaguera22/balaguera-post1-u9/actions)
+## Decisiones de diseño
 
----
+### Patrón Strategy
 
-## 📋 Verificación Local y Comandos de Ejecución
+Se creó la interfaz `ReminderChannel` para definir una operación común de envío de recordatorios. Las clases `EmailReminderChannel` y `SmsReminderChannel` implementan esta interfaz, permitiendo utilizar diferentes canales sin modificar la lógica principal del servicio.
 
-Para validar de forma integral que la arquitectura, el refactor DIP, las pruebas unitarias y las pruebas de integración pasen sin errores, ejecuta el siguiente comando desde la raíz del proyecto en tu terminal:
+Esta separación facilita las pruebas, ya que es posible simular los canales de notificación con Mockito y verificar su comportamiento sin realizar envíos reales.
+
+### Patrón Factory
+
+Se implementó `ReminderChannelFactory` para seleccionar el canal correspondiente según el valor de `CanalNotificacion`.
+
+De esta forma, `CitaReminderServiceImpl` delega la selección del canal en lugar de encargarse directamente de crear las estrategias. Esto reduce el acoplamiento y facilita la incorporación de nuevos canales de notificación.
+
+### Uso de Test Doubles
+
+Se utilizaron objetos de prueba para aislar el servicio de sus dependencias y controlar su comportamiento durante las pruebas unitarias.
+
+Las principales decisiones fueron:
+
+- **Mock:** se utilizó Mockito para simular `CitaRepository`, `ReminderChannelFactory` y `ReminderChannel`. Esto permite controlar las respuestas de las dependencias y verificar interacciones como las consultas, los envíos y el guardado de las citas.
+- **Stub:** se proporcionan respuestas controladas a las dependencias para probar diferentes escenarios, como la existencia o ausencia de citas pendientes.
+- **Fake:** no se implementó una clase Fake personalizada para las pruebas unitarias. Para las pruebas de persistencia se utiliza H2 como base de datos en memoria, proporcionando un entorno de almacenamiento de prueba.
+
+También se utiliza `Clock.fixed(...)` para controlar la fecha y hora de las pruebas. Es un reloj real configurado con una hora fija, no un Mock ni un Stub. Esto permite obtener resultados predecibles y repetibles sin depender de la hora del sistema.
+
+### Separación de responsabilidades
+
+El servicio coordina el proceso de envío, el repositorio administra el acceso a las citas y los canales se encargan de enviar las notificaciones.
+
+Esta separación facilita el mantenimiento, las pruebas y la evolución del sistema.
+
+## Ejecución de las pruebas
+
+Desde la terminal, ubicada en la carpeta raíz del proyecto, ejecutar:
 
 ```powershell
-mvn clean verify
+mvn test
+```
+
+La ejecución se considera correcta cuando Maven finaliza con `BUILD SUCCESS` y las pruebas terminan sin errores.
+
+---
+
+# Parte 2: Inversión de Dependencias (DIP), pruebas de integración y CI
+
+## Decisiones de diseño y arquitectura
+
+### 1. Aplicación del principio de Inversión de Dependencias (DIP)
+
+Se refactorizó la lógica de negocio para evitar que el servicio principal dependa directamente de implementaciones concretas de los canales de notificación.
+
+Mediante la clase `CanalUrgenteConfig` se define la configuración del canal de notificación urgente, que se inyecta en `CitaReminderServiceImpl` mediante el constructor utilizando la interfaz `ReminderChannel`.
+
+Esta implementación permite que el servicio dependa de una abstracción y no de una clase concreta, facilitando el mantenimiento, las pruebas y la sustitución de implementaciones.
+
+### 2. Inyección de dependencias
+
+Se utiliza la inyección de dependencias por constructor para proporcionar al servicio sus colaboradores principales:
+
+- `C
