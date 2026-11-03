@@ -1,4 +1,3 @@
-
 package com.clinica.recordatorios.service;
 
 import com.clinica.recordatorios.channel.ReminderChannel;
@@ -33,6 +32,9 @@ class CitaReminderServiceImplTest {
     @Mock
     private ReminderChannel reminderChannel;
 
+    @Mock
+    private ReminderChannel canalUrgenteMock; // <--- Añadido para satisfacer los 4 parámetros del constructor
+
     private CitaReminderServiceImpl service;
 
     @BeforeEach
@@ -42,9 +44,11 @@ class CitaReminderServiceImplTest {
                 ZoneId.of("UTC")
         );
 
+        // Se pasan los 4 parámetros requeridos por CitaReminderServiceImpl tras el refactor DIP
         service = new CitaReminderServiceImpl(
                 citaRepository,
                 reminderChannelFactory,
+                canalUrgenteMock,
                 relojFijo
         );
     }
@@ -81,7 +85,7 @@ class CitaReminderServiceImplTest {
                 .obtenerCanal(CanalNotificacion.EMAIL);
         verify(reminderChannel).enviar(
                 cita,
-                "Recordatorio: tiene una cita médica programada para "
+                "Recordatorio: tiene una cita el "
                         + fechaCita
         );
         verify(citaRepository).save(cita);
