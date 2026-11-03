@@ -9,19 +9,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true") // <--- Añade esta propiedad aquí
 class CitaReminderServiceIntegrationTest {
 
     @TestConfiguration
@@ -29,8 +29,7 @@ class CitaReminderServiceIntegrationTest {
         @Bean
         @Primary
         public Clock clock() {
-            return Clock.fixed(Instant.parse("2026-08-10T09:00:00Z"),
-                    ZoneId.of("UTC"));
+            return Clock.fixed(Instant.parse("2026-08-10T09:00:00Z"), ZoneId.of("UTC"));
         }
     }
 
@@ -46,14 +45,12 @@ class CitaReminderServiceIntegrationTest {
     @Test
     void enviarRecordatoriosPendientes_contextoCompletoDeSpring_persisteYNotificaCitasEnVentana() {
         citaRepository.save(new Cita(null, "Carla Rios", "3011112222",
-                LocalDateTime.of(2026, 8, 10, 18, 0), CanalNotificacion.SMS,
+                java.time.LocalDateTime.of(2026, 8, 10, 18, 0), CanalNotificacion.SMS,
                 false));
 
         int enviados = citaReminderService.enviarRecordatoriosPendientes();
-
         assertEquals(1, enviados);
-        verify(notificadorSmsGateway, times(1)).enviarSms(anyString(),
-                anyString());
+        verify(notificadorSmsGateway, times(1)).enviarSms(anyString(), anyString());
         assertTrue(citaRepository.findAll().get(0).isRecordatorioEnviado());
     }
 }
