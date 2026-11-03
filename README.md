@@ -11,7 +11,7 @@ Este proyecto permite gestionar el envío de recordatorios de citas médicas med
 - Spring Data JPA
 - H2 Database
 - JUnit 5
-- Mockito
+- Mockitor
 - Maven
 
 ## Funcionalidades implementadas
@@ -64,3 +64,32 @@ La ejecución se considera correcta cuando Maven finaliza con `BUILD SUCCESS` y 
 ## Alcance de esta entrega
 
 Esta entrega corresponde a la primera parte de la actividad. Las notificaciones se simulan y no se realizan envíos reales mediante servicios externos.
+# Parte 2: Refactor por Inversión de Dependencias (DIP), Compatibilidad con Spring Boot 3.4+, Pruebas de Integración y CI
+
+## 🛠️ Decisiones de Diseño y Arquitectura (Parte 2)
+
+### 1. Aplicación del Principio de Inversión de Dependencias (DIP)
+* **Desacoplamiento de Canales Urgentes:** Se refactorizó la lógica de negocio para que el servicio principal no dependa de implementaciones concretas. Mediante la clase de configuración `CanalUrgenteConfig`, se define un punto de composición (*composition root*) que abstrae y gestiona la inyección de la estrategia para recordatorios de alta prioridad a través del constructor, cumpliendo estrictamente con el DIP.
+
+### 2. Estrategia de Pruebas Robustas y *Test Doubles*
+* **Reloj Determinista (`Clock.fixed`):** Para evitar la dependencia del tiempo del sistema y hacer que las pruebas de la ventana de 24 horas sean totalmente predecibles y repetibles, se configuró un `Clock` estático utilizando `Clock.fixed(Instant.parse("2026-08-10T09:00:00Z"), ZoneId.of("UTC"))`.
+* **Aislamiento con `@MockitoBean`:** Se adoptó la nueva API de Spring Boot 3.4+ reemplazando el antiguo `@MockBean` por `@MockitoBean` (`org.springframework.test.context.bean.override.mockito.MockitoBean`) para aislar los gateways externos de mensajería (como `NotificadorSmsGateway`) en el contexto completo de Spring.
+* **Gestión de Sobrescritura de Beans:** Se solventaron los conflictos de beans duplicados entre el entorno de producción y el de pruebas (específicamente con el bean `clock`) incorporando `@Primary` en las configuraciones de test y habilitando explícitamente la propiedad `spring.main.allow-bean-definition-overriding=true` a nivel de anotación en las pruebas de integración.
+
+---
+
+## 🔄 Integración Continua (CI) y Automatización
+
+* **Pipeline en GitHub Actions:** Se configuró un flujo de trabajo automatizado que se ejecuta en cada `push` o `pull request` hacia la rama principal. Este entorno limpia, compila y ejecuta todas las fases del ciclo de vida de Maven de forma aislada.
+* **Badge de Estado:** El repositorio incluye el indicador visual que certifica el correcto funcionamiento del pipeline en entornos Linux limpios:
+  
+  [![CI Status](https://github.com/Eileenbalaguera22/balaguera-post1-u9/actions/workflows/ci.yml/badge.svg)](https://github.com/Eileenbalaguera22/balaguera-post1-u9/actions)
+
+---
+
+## 📋 Verificación Local y Comandos de Ejecución
+
+Para validar de forma integral que la arquitectura, el refactor DIP, las pruebas unitarias y las pruebas de integración pasen sin errores, ejecuta el siguiente comando desde la raíz del proyecto en tu terminal:
+
+```powershell
+mvn clean verify
